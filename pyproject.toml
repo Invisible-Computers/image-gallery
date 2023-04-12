@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "image-gallery"
+version = "0.1.0"
+description = "A functional demo app for the Invisible Screen"
+authors = ["Invisible Computers Gmbh <info@invisible-computers.com>"]
+license = "MIT License"
+readme = "README.md"
+packages = [{include = "image_gallery"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
