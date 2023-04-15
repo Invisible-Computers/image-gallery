@@ -134,8 +134,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.environ["REDIS_URL"],
-        "TIMEOUT": 60 * 60 * 24 * 30,  # Set default timeout to 30 days.
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache_table",
     }
 }

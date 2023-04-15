@@ -26,6 +26,6 @@ To show how users can change app settings, the user can configure whether the im
 3. Tell poetry to use python 3.11: `poetry env use python3.11`
 4. Install dependencies: `poetry install`
 5. Setup the environment variables: `source setup_local_env.sh`
-6. Launch the docker containers with postgres and redis: `docker-compose up -d`
+6. Launch the docker container with postgres: `docker-compose up -d`
 7. Switch into the src directory: `cd src`
 7. Run the django app: `poetry run python manage.py runserver`
