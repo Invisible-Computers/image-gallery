@@ -125,7 +125,9 @@ def authenticate_jwt(request) -> tuple[UUID, Optional[Device]]:
         raise AuthenticationFailed("No http auth header")
     try:
         decoded_token = jwt.decode(
-            signed_token, os.environ["JWT_PUBLIC_KEY"], algorithms=["RS256"]
+            signed_token,
+            os.environ["JWT_PUBLIC_KEY"].replace("\\n", "\n"),
+            algorithms=["RS256"],
         )
     except jwt.exceptions.ExpiredSignatureError:
         raise AuthenticationFailed("Token expired")

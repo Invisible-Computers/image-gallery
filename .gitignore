@@ -2,3 +2,4 @@
 __pycache__/
 deploy.sh
 delete_old_docker_images.py
+staticfiles

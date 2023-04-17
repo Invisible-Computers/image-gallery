@@ -11,10 +11,14 @@ ADD ./pyproject.toml /home/docker/repo/pyproject.toml
 ADD ./poetry.lock /home/docker/repo/poetry.lock
 RUN poetry config virtualenvs.create false && poetry install --without dev --no-interaction --no-ansi  --no-root
 
+# create uwsgi group and user
+RUN groupadd -r uwsgi &&  useradd -r -g uwsgi uwsgi
+RUN chown -R uwsgi:uwsgi /home/docker/repo
+
+
 # Mount code
 ADD . /home/docker/repo/
 
-ENV DJANGO_SETTINGS_MODULE image_gallery.settings
 
 
 CMD /home/docker/repo/boot.sh
