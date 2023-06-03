@@ -62,26 +62,25 @@ class Settings(View):  # NOT a DRF view!!
             # Put the data in the session, so it is still there when the user refreses the page. The OneTimeToken won't work anymore.
             request.session["user-id"] = str(user_id)
             request.session["device-id"] = str(device_id)
-            request.session["device-type"] = request.GET["device-type"]
         except AuthenticationFailed:
             # This happens when the user refreshes the settings page, or when the form has posted and the page
             # is re-loaded.
             # We can trust what is in the session, because it is set by us and stored server-side.
-            user_id, device_id, device_type = authenticate_session(request)
-
+            user_id, device_id = authenticate_session(request)
+            device = Device.objects.get(device_id=device_id)
         return render(
             request=request,
             template_name="settings.html",
             context={
                 "device_id": device_id,
-                "device_type": device_type,
+                "device_type": device.device_type,
                 "is_vertically_oriented": device.is_vertically_oriented,
             },
         )
 
 
 def save_settings(request):
-    user_id, device_id, device_type = authenticate_session(request)
+    user_id, device_id = authenticate_session(request)
 
     device = Device.objects.get(device_id=device_id)
     is_vertically_oriented = request.POST["orientation"] == "vertical"
@@ -97,7 +96,7 @@ class GetRender(APIView):
     def get(self, request):
         user_id, user_device_ids = authenticate_jwt(request)
 
-        device_id = request.GET["device_id"]
+        device_id = request.GET["device-id"]
         device_type = request.GET["device-type"]
 
         device = get_or_create_device(
@@ -209,10 +208,9 @@ def authenticate_login_token(login_token) -> tuple[UUID, list[str]]:
     raise AuthenticationFailed("No login token")
 
 
-def authenticate_session(request) -> tuple[UUID, UUID, str]:
+def authenticate_session(request) -> tuple[UUID, UUID]:
     user_id = UUID(request.session.get("user-id"))
     device_id = UUID(request.session.get("device-id"))
-    device_type = request.session.get("device-type")
-    if user_id and device_id and device_type:
-        return user_id, device_id, device_type
+    if user_id and device_id:
+        return user_id, device_id
     raise AuthenticationFailed("Session authentication failed")
