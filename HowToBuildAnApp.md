@@ -4,7 +4,10 @@
 
 Send us a quick email info@invisible-computers.com and we will make sure you're up and running in no time.
 
-(You can continue building your application while you're waiting for your developer ID.)
+We will also be happy to answer any questions you have, help you along the process and may be able to advise you on your app idea. 
+On an e-paper display, some types of applications work better than others. 
+
+You can continue building your application while you're waiting for your developer ID.
 
 
 ## 1. Define a settings url and a login url
@@ -15,7 +18,9 @@ The user will be attempting to log in by POSTING a JWT to your **login url**.
 The token contains two values:
 * "user_id"
 * "developer_id"
-You must validate that the developer_id field matches your developer id.
+* "user_device_ids"
+You must validate that the `developer_id` field matches your developer id.
+You should use the `user_device_ids` prevent the user from claiming ownership of devices that they do not own.
 
 
 You will need to respond with a temporary secret token. Your token will be included in the QUERY 
@@ -23,6 +28,8 @@ parameters of a subsequent request to your settings url. Because this token
 will be part of the QUERY string, it may get logged or get stored in the users browser history. 
 If your app handles private or otherwise sensitive data, you should use a one-time use token with a relatively 
 short expiration time.
+
+
 
 ### Settings url 
 
@@ -48,7 +55,8 @@ that the user is aiming to configure with your app.
 On this url, you must serve a valid render for the device. 
 
 On this url, the DEVICE authenticates with a JWT. The JWT will contain your developer ID. YOU MUST VALIDATE THAT THE DEVELOPER ID IS CORRECT.
+The JWT also contains the `user_device_ids` field, but this time, it only contains the ID of the device for which the render request is made. 
 
-The url will again have the device-id in the query parameters, as well as the device-type. 
+The url will have the `device_id` in the query parameters, as well as the device-type. 
 This allows you to return a screen with setup instructions even if the user has never visited the settings url before. 
 
