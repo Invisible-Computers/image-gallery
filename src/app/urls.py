@@ -1,10 +1,19 @@
 from django.urls import path
 
-from .views import GetRender, Login, Settings, save_settings
+from .views import (
+    GetLoginToken,
+    GetRender,
+    Login,
+    Settings,
+)
 
 urlpatterns = [
-    path("login/", Login.as_view(), name="login"),
-    path("settings/", Settings.as_view(), name="settings"),
-    path("settings/save/", save_settings, name="save_settings"),
+    path("get-login-token/", GetLoginToken.as_view(), name="login"),
+    path(
+        "login/",
+        Login.as_view(),
+        name="login",
+    ),
+    path("settings/<uuid:device_id>/", Settings.as_view(), name="settings"),
     path("render/", GetRender.as_view(), name="render"),
 ]

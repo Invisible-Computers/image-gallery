@@ -16,11 +16,11 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Device, OneTimeToken
+from .models import AuthorizedDevice, OneTimeToken
 from .repository import generate_one_time_token_for_user_id
 
 
-class Login(APIView):
+class GetLoginToken(APIView):
     # Why do this login step and not pass the JWT directly to the settings page?
     # Because the mobile app will open the settings url in the browser, it can only pass a URL to the browser.
     # And passing a JWT in the URL is considered a security risk because it may leak,
@@ -43,31 +43,34 @@ class Login(APIView):
         return Response({"login_token": one_time_token})
 
 
-class Settings(View):  # NOT a DRF view!!
+class Login(View):
     def get(self, request):
-        try:
-            login_token = request.GET.get("login-token")
-            user_id, user_device_ids = authenticate_login_token(login_token=login_token)
+        login_token = request.GET.get("login-token")
+        user_id, user_device_ids = authenticate_login_token(login_token=login_token)
 
-            device_id = request.GET["device-id"]
-            device_type = request.GET["device-type"]
+        device_id = UUID(request.GET["device-id"])
+        device_type = request.GET["device-type"]
 
-            device = get_or_create_device(
-                device_id=UUID(device_id),
-                user_id=user_id,
-                device_type=device_type,
-                authorized_user_device_ids=user_device_ids,
-            )
+        authorize_new_device_ownership(
+            device_id=device_id,
+            user_id=user_id,
+            device_type=device_type,
+            authorized_user_device_ids=user_device_ids,
+        )
 
-            # Put the data in the session, so it is still there when the user refreses the page. The OneTimeToken won't work anymore.
-            request.session["user-id"] = str(user_id)
-            request.session["device-id"] = str(device_id)
-        except AuthenticationFailed:
-            # This happens when the user refreshes the settings page, or when the form has posted and the page
-            # is re-loaded.
-            # We can trust what is in the session, because it is set by us and stored server-side.
-            user_id, device_id = authenticate_session(request)
-            device = Device.objects.get(device_id=device_id)
+        # Log in the user
+        request.session["user-id"] = str(user_id)
+
+        return HttpResponseRedirect(
+            reverse("settings", kwargs={"device_id": device_id})
+        )
+
+
+class Settings(View):  # NOT a DRF view!!
+    def get(self, request, device_id: UUID):
+        user_id = authenticate_session(request)
+        device = authorize_and_get_device(device_id=device_id, user_id=user_id)
+
         return render(
             request=request,
             template_name="settings.html",
@@ -78,15 +81,16 @@ class Settings(View):  # NOT a DRF view!!
             },
         )
 
+    def post(self, request, device_id: UUID):
+        user_id = authenticate_session(request)
+        device = authorize_and_get_device(device_id=device_id, user_id=user_id)
 
-def save_settings(request):
-    user_id, device_id = authenticate_session(request)
-
-    device = Device.objects.get(device_id=device_id)
-    is_vertically_oriented = request.POST["orientation"] == "vertical"
-    device.is_vertically_oriented = is_vertically_oriented
-    device.save()
-    return HttpResponseRedirect(reverse("settings"))
+        is_vertically_oriented = request.POST["orientation"] == "vertical"
+        device.is_vertically_oriented = is_vertically_oriented
+        device.save()
+        return HttpResponseRedirect(
+            reverse("settings", kwargs={"device_id": device_id})
+        )
 
 
 class GetRender(APIView):
@@ -99,12 +103,16 @@ class GetRender(APIView):
         device_id = request.GET["device-id"]
         device_type = request.GET["device-type"]
 
-        device = get_or_create_device(
+        authorize_new_device_ownership(
             user_id=user_id,
             device_id=UUID(device_id),
             device_type=request.GET["device-type"],
             authorized_user_device_ids=user_device_ids,
         )
+        # The render endpoint may be called for a new device before the settings page is opened.
+        # Therefore, we also must update the authorized devices in here.
+
+        device = AuthorizedDevice.objects.get(device_id=device_id)
 
         if device_type == "BLACK_AND_WHITE_SCREEN_880X528":
             if device.is_vertically_oriented:
@@ -142,12 +150,28 @@ class GetRender(APIView):
 ## Authentication and authorization methods
 
 
-def get_or_create_device(
+def authorize_new_device_ownership(
     device_id: UUID,
     user_id: UUID,
     device_type: str,
     authorized_user_device_ids: list[str],
-) -> Device:
+):
+    check_device_ownership(
+        device_id=device_id, authorized_user_device_ids=authorized_user_device_ids
+    )
+    register_device_ownership(
+        device_id=device_id, user_id=user_id, device_type=device_type
+    )
+
+
+def authorize_and_get_device(device_id, user_id) -> AuthorizedDevice:
+    return AuthorizedDevice.objects.get(device_id=device_id, owner_id=user_id)
+
+
+def check_device_ownership(
+    device_id: UUID,
+    authorized_user_device_ids: list[str],
+):
     """This function will only create the device if it is in the authorized_user_device_ids list.
     This is to prevent a user from claiming a device that does not belong to them."""
 
@@ -156,7 +180,9 @@ def get_or_create_device(
     if device_id not in authorized_user_device_ids:
         raise PermissionDenied("Device does not belong to user")
 
-    device, created = Device.objects.get_or_create(
+
+def register_device_ownership(device_id: UUID, user_id: UUID, device_type: str):
+    device, created = AuthorizedDevice.objects.get_or_create(
         device_id=device_id, defaults={"owner_id": user_id, "device_type": device_type}
     )
     if device.owner_id != user_id:
@@ -164,7 +190,6 @@ def get_or_create_device(
             "Device is already claimed by another user. "
             "This should never happen, because we verify that the device belongs to a user before creating it."
         )
-    return device
 
 
 def authenticate_jwt(request) -> tuple[UUID, list[str]]:
@@ -208,9 +233,8 @@ def authenticate_login_token(login_token) -> tuple[UUID, list[str]]:
     raise AuthenticationFailed("No login token")
 
 
-def authenticate_session(request) -> tuple[UUID, UUID]:
+def authenticate_session(request) -> UUID:
     user_id = UUID(request.session.get("user-id"))
-    device_id = UUID(request.session.get("device-id"))
-    if user_id and device_id:
-        return user_id, device_id
+    if user_id:
+        return user_id
     raise AuthenticationFailed("Session authentication failed")

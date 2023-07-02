@@ -38,13 +38,17 @@ If you are providing an app that displays fitness stats, you will want to guide 
 to connect their fitness accounts. You will also want to provide layout configuration options for the user. 
 
 When the user makes a GET request to your settings url, a url parameter called `?login-token=<???>` will be passed,
-which will be the token that you returned from the login url. You can then set a cookie to maintain the user's session. 
+which will be the token that you returned from the login url.
 
-Additionally, a url parameter `?device-id=<id>` is passed. 
+Additionally, a URL parameter `?device-id=<id>` is passed. 
 Since a user might have multiple devices,  this to identify the device on subsequent requests. 
 
 Last, there is a third parameter called `?&device-type=<type>`. You can use this to identify the type of device
-that the user is aiming to configure with your app. 
+that the user is aiming to configure with your app.
+
+If you are using a one-time-token as login token, you can then set a cookie to maintain the user's session, treat this url as another login url 
+and redirect the user to the "real" settings page. This is the approach taken by the [image-gallery demo app](https://github.com/Invisible-Computers/image-gallery).
+
 
 ###  Handling session timeouts on the settings url
 -> Deep link into the app to re-login the user. 
