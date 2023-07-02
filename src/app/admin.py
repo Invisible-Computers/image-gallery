@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AuthorizedDevice, OneTimeToken
+from .models import AppInstallation, OneTimeToken
 
 admin.site.register(OneTimeToken)
-admin.site.register(AuthorizedDevice)
+admin.site.register(AppInstallation)

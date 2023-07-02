@@ -9,7 +9,7 @@ class OneTimeToken(models.Model):
     user_device_ids = models.JSONField()
 
 
-class AuthorizedDevice(models.Model):
+class AppInstallation(models.Model):
 
     device_id = models.UUIDField(unique=True, primary_key=True)
     owner_id = models.UUIDField()

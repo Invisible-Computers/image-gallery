@@ -16,7 +16,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import AuthorizedDevice, OneTimeToken
+from .models import AppInstallation, OneTimeToken
 from .repository import generate_one_time_token_for_user_id
 
 
@@ -34,9 +34,12 @@ class GetLoginToken(APIView):
 
     def get(self, request):
         user_id, user_device_ids = authenticate_jwt(request)
-        # TODO: If the mobile apps pass the device-id here as well,
-        #  we can already do the get_or_create_device call here,
-        #  this may be useful for some implementations.
+        # TODO: The JWT should contain the "installation_id", and we should prefer the
+        #  installation_id over the device_id. With the device_id, we are implictitly assuming that an app can
+        #  only be installed once per device, and even if that's true, it's not as straight forward as a mental
+        #  model as the installation_id.
+        #  But even just passing the device_id here will allow to already create an app installation instance,
+        #  so we don't have to awkwardly carry around the user_device_ids in the one time token.
         one_time_token = generate_one_time_token_for_user_id(
             user_id=user_id, user_device_ids=user_device_ids
         )
@@ -112,7 +115,7 @@ class GetRender(APIView):
         # The render endpoint may be called for a new device before the settings page is opened.
         # Therefore, we also must update the authorized devices in here.
 
-        device = AuthorizedDevice.objects.get(device_id=device_id)
+        device = AppInstallation.objects.get(device_id=device_id)
 
         if device_type == "BLACK_AND_WHITE_SCREEN_880X528":
             if device.is_vertically_oriented:
@@ -159,13 +162,11 @@ def authorize_new_device_ownership(
     check_device_ownership(
         device_id=device_id, authorized_user_device_ids=authorized_user_device_ids
     )
-    register_device_ownership(
-        device_id=device_id, user_id=user_id, device_type=device_type
-    )
+    create_installation(device_id=device_id, user_id=user_id, device_type=device_type)
 
 
-def authorize_and_get_device(device_id, user_id) -> AuthorizedDevice:
-    return AuthorizedDevice.objects.get(device_id=device_id, owner_id=user_id)
+def authorize_and_get_device(device_id, user_id) -> AppInstallation:
+    return AppInstallation.objects.get(device_id=device_id, owner_id=user_id)
 
 
 def check_device_ownership(
@@ -181,8 +182,8 @@ def check_device_ownership(
         raise PermissionDenied("Device does not belong to user")
 
 
-def register_device_ownership(device_id: UUID, user_id: UUID, device_type: str):
-    device, created = AuthorizedDevice.objects.get_or_create(
+def create_installation(device_id: UUID, user_id: UUID, device_type: str):
+    device, created = AppInstallation.objects.get_or_create(
         device_id=device_id, defaults={"owner_id": user_id, "device_type": device_type}
     )
     if device.owner_id != user_id:
