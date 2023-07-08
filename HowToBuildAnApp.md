@@ -37,59 +37,70 @@ You can continue building your application while you're waiting for your develop
 #### JWT Login url
 
 The user will be attempting to log in by POSTING a JWT to your **login url**.
-The token contains two values:
-* "user_id"
-* "developer_id"
-* "user_device_ids"
-You must validate that the `developer_id` field matches your developer id.
-You also keep track of the `user_device_ids`, such that you can later validate if the user is authorized 
-to access a certain device. 
+The token contains the following values:
+* `user_id`
+* `developer_id`
+* `device_id`
+* `installation_id`
+You must validate that the `developer_id` field matches your developer id, to prevent developers of other
+applications from impersonating your users. 
+Installation IDs are globally unique, but there can be multiple installations of your app on a single device.
+
+You may choose to simply identify sessions by `installation_id`, or you may choose to keep track of devices and users.
+
+You will need to respond with a secret token. You should associate this token with the `installation_id` or any other 
+unique session identifiers, such that you can identify the session when the settings url is opened.  
 
 
-You will need to respond with a secret token. 
 
-
-#### Settings url 
+#### Settings url / session login url
 
 
 After this, the companion app will load your `settings url`, while passing the token in a query argument called `login-token`.
 
-```<your-settings-url>?login-token=<the-token-you-returned>```
+```<your-settings-url>/?login-token=<the-token-you-returned>&device-type=<device-type>/```
 
 Because the token is part of the query string, it may get logged or get stored in the users browser history. 
 
+
 If your app handles private or otherwise sensitive data, you should use a one-time use token with a relatively 
-short expiration time. You can then configure the `settings url` to be a session-login url, which will redirect the 
-user to the actual settings page after successful one-time-token authentication.
+short expiration time. You can then use the `settings url` as a `session login url`, 
+which will redirect to the actual settings page after successful one-time-token authentication.
 
 
-On the **settings page**, you should serve a mobile-friendly website that the user can use to configure your app.
+On the settings page, you should serve a mobile-friendly website that the user can use to configure your app.
 For example, if you are providing an app that displays fitness stats, you will want to guide the user through a process
 to connect their fitness accounts. You will also want to provide layout configuration options for the user. 
 
-When the user makes a GET request to your settings url, a url parameter called `?login-token=<???>` will be passed,
-which will be the token that you returned from the login url.
-
-Additionally, a URL parameter `?device-id=<id>` is passed. 
-Since a user might have multiple devices,  this to identify the device on subsequent requests. 
-
-Last, there is a third parameter called `?&device-type=<type>`. You can use this to identify the type of device
-that the user is aiming to configure with your app.
-
-If you are using a one-time-token as login token, you can then set a cookie to maintain the user's session, treat this url as another login url 
-and redirect the user to the "real" settings page. This is the approach taken by the [image-gallery demo app](https://github.com/Invisible-Computers/image-gallery).
-
-
-####  Handling session timeouts on the settings url
--> Not fully handled yet.  Users currently have to close the page, go back to the app and click again on the "configure" button.
+The query will be also include a  `?&device-type=<device-type>` parameter. There is currently only
+one device type, as described below in the `Device types` section.
 
 ### 2. Define a render url
 
 On this url, you must serve a valid render for the device. 
 
-On this url, the DEVICE authenticates with a JWT. The JWT will contain your developer ID. YOU MUST VALIDATE THAT THE DEVELOPER ID IS CORRECT.
-The JWT also contains the `user_device_ids` field, but this time, it only contains the ID of the device for which the render request is made. 
+On this url, the DEVICE authenticates with the same jason web token (JWT) that is also used for the login URL.
+The JWT will contain your developer ID. Again, you must validate that the developer ID matches.
 
-The url will have the `device_id` in the query parameters, as well as the device-type. 
-This allows you to return a screen with setup instructions even if the user has never visited the settings url before. 
+Additionally, the JWT  contains the `user_id`, `device_id` and `installation_id`.
+
+
+The url will have the `device_type` in the query parameters. 
+This means that you should be able to render an image on this url, for example
+with setup instructions, even if the user has never visited the settings url before. 
+
+### 3. Submit your app
+
+Once you have the `settings url` and the `render url` ready, you can submit your app to us.
+Users will then be able to install the app on their device by clicking on a
+special installation link that you can place on your website. 
+
+
+
+
+#### Device types
+
+
+* `BLACK_AND_WHITE_SCREEN_800X480` - This device type requires you to render a 800x480 image. The image may be in color or greyscale, but it will be converted to black and white before being displayed on the screen.
+
 

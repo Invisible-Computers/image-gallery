@@ -14,6 +14,6 @@ urlpatterns = [
         Login.as_view(),
         name="login",
     ),
-    path("settings/<uuid:device_id>/", Settings.as_view(), name="settings"),
+    path("settings/", Settings.as_view(), name="settings"),
     path("render/", GetRender.as_view(), name="render"),
 ]

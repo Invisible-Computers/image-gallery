@@ -1,23 +1,25 @@
+import dataclasses
 import datetime
 import io
 import os
+import secrets
+from typing import Any
 from uuid import UUID
 
 import jwt
 import pytz
 import requests
 from django.core.cache import cache
-from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.timezone import now
 from django.views import View
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import AppInstallation, OneTimeToken
-from .repository import generate_one_time_token_for_user_id
 
 
 class GetLoginToken(APIView):
@@ -33,67 +35,58 @@ class GetLoginToken(APIView):
     # For transparency, we handle permissions in the view itself.
 
     def get(self, request):
-        user_id, user_device_ids = authenticate_jwt(request)
-        # TODO: The JWT should contain the "installation_id", and we should prefer the
-        #  installation_id over the device_id. With the device_id, we are implictitly assuming that an app can
-        #  only be installed once per device, and even if that's true, it's not as straight forward as a mental
-        #  model as the installation_id.
-        #  But even just passing the device_id here will allow to already create an app installation instance,
-        #  so we don't have to awkwardly carry around the user_device_ids in the one time token.
-        one_time_token = generate_one_time_token_for_user_id(
-            user_id=user_id, user_device_ids=user_device_ids
+        decoded_jwt: DecodedJWT = authenticate_jwt(request)
+        installation_id = decoded_jwt.installation_id
+        one_time_token = generate_login_token(
+            installation_id=installation_id,
         )
+        # Optionally, you may also create-if-not-exists a user account here
+        # and link it to the installation_id and/or the device_id.
         return Response({"login_token": one_time_token})
 
 
 class Login(View):
     def get(self, request):
         login_token = request.GET.get("login-token")
-        user_id, user_device_ids = authenticate_login_token(login_token=login_token)
+        installation_id = authenticate_login_token(login_token=login_token)
 
-        device_id = UUID(request.GET["device-id"])
-        device_type = request.GET["device-type"]
+        request.GET["device-type"]
 
-        authorize_new_device_ownership(
-            device_id=device_id,
-            user_id=user_id,
-            device_type=device_type,
-            authorized_user_device_ids=user_device_ids,
+        AppInstallation.objects.get_or_create(
+            installation_id=installation_id,
         )
 
-        # Log in the user
-        request.session["user-id"] = str(user_id)
+        # For a more complex app, for example, the installation entity may be linked to a device entity, which in turn
+        # could be linked to a user entity.
 
-        return HttpResponseRedirect(
-            reverse("settings", kwargs={"device_id": device_id})
-        )
+        # You can also use user-linked sessions.
+        request.session["installation-id"] = str(installation_id)
+
+        # If you are using user-linked sessions, you could for example include the installation_id in the url of the settings page.
+        return HttpResponseRedirect(reverse("settings"))
 
 
 class Settings(View):  # NOT a DRF view!!
-    def get(self, request, device_id: UUID):
-        user_id = authenticate_session(request)
-        device = authorize_and_get_device(device_id=device_id, user_id=user_id)
+    def get(self, request):
+        installation_id = authenticate_session(request)
+        installation = AppInstallation.objects.get(installation_id=installation_id)
 
         return render(
             request=request,
             template_name="settings.html",
             context={
-                "device_id": device_id,
-                "device_type": device.device_type,
-                "is_vertically_oriented": device.is_vertically_oriented,
+                "is_vertically_oriented": installation.is_vertically_oriented,
             },
         )
 
-    def post(self, request, device_id: UUID):
-        user_id = authenticate_session(request)
-        device = authorize_and_get_device(device_id=device_id, user_id=user_id)
+    def post(self, request):
+        installation_id = authenticate_session(request)
+        installation = AppInstallation.objects.get(installation_id=installation_id)
 
         is_vertically_oriented = request.POST["orientation"] == "vertical"
-        device.is_vertically_oriented = is_vertically_oriented
-        device.save()
-        return HttpResponseRedirect(
-            reverse("settings", kwargs={"device_id": device_id})
-        )
+        installation.is_vertically_oriented = is_vertically_oriented
+        installation.save()
+        return HttpResponseRedirect(reverse("settings"))
 
 
 class GetRender(APIView):
@@ -101,31 +94,27 @@ class GetRender(APIView):
     permission_classes = []  # We handle authentication inside the view
 
     def get(self, request):
-        user_id, user_device_ids = authenticate_jwt(request)
+        decoded_jwt = authenticate_jwt(request)
 
-        device_id = request.GET["device-id"]
+        # This endpoint may be called before the settings page is first called.
+        # If you are working with  user and device entities, you should create them here if they do not exist yet.
+        # The decoded_jwt contains the user_id as well as the device_id. You can use these to create the entities.
+
         device_type = request.GET["device-type"]
-
-        authorize_new_device_ownership(
-            user_id=user_id,
-            device_id=UUID(device_id),
-            device_type=request.GET["device-type"],
-            authorized_user_device_ids=user_device_ids,
+        installation_id = decoded_jwt.installation_id
+        installation, _ = AppInstallation.objects.get_or_create(
+            installation_id=installation_id
         )
-        # The render endpoint may be called for a new device before the settings page is opened.
-        # Therefore, we also must update the authorized devices in here.
-
-        device = AppInstallation.objects.get(device_id=device_id)
 
         if device_type == "BLACK_AND_WHITE_SCREEN_880X528":
-            if device.is_vertically_oriented:
+            if installation.is_vertically_oriented:
                 width = 528
                 height = 880
             else:
                 width = 880
                 height = 528
         elif device_type == "BLACK_AND_WHITE_SCREEN_800X480":
-            if device.is_vertically_oriented:
+            if installation.is_vertically_oriented:
                 width = 480
                 height = 800
             else:
@@ -133,7 +122,7 @@ class GetRender(APIView):
                 height = 480
         else:
             raise ValueError(f"Invalid device type{device_type}")
-        cache_key = f"image_gallery_cache_key_{device.device_id}_{width}_{height}"
+        cache_key = f"image_gallery_cache_key_{installation_id}_{width}_{height}"
         cache_value = cache.get(key=cache_key)
         image = io.BytesIO(cache_value) if cache_value else None
 
@@ -153,47 +142,21 @@ class GetRender(APIView):
 ## Authentication and authorization methods
 
 
-def authorize_new_device_ownership(
-    device_id: UUID,
-    user_id: UUID,
-    device_type: str,
-    authorized_user_device_ids: list[str],
-):
-    check_device_ownership(
-        device_id=device_id, authorized_user_device_ids=authorized_user_device_ids
-    )
-    create_installation(device_id=device_id, user_id=user_id, device_type=device_type)
+@dataclasses.dataclass
+class DecodedJWT:
+    user_id: UUID
+    device_id: UUID
+    installation_id: UUID
 
-
-def authorize_and_get_device(device_id, user_id) -> AppInstallation:
-    return AppInstallation.objects.get(device_id=device_id, owner_id=user_id)
-
-
-def check_device_ownership(
-    device_id: UUID,
-    authorized_user_device_ids: list[str],
-):
-    """This function will only create the device if it is in the authorized_user_device_ids list.
-    This is to prevent a user from claiming a device that does not belong to them."""
-
-    authorized_user_device_ids = [UUID(item) for item in authorized_user_device_ids]
-
-    if device_id not in authorized_user_device_ids:
-        raise PermissionDenied("Device does not belong to user")
-
-
-def create_installation(device_id: UUID, user_id: UUID, device_type: str):
-    device, created = AppInstallation.objects.get_or_create(
-        device_id=device_id, defaults={"owner_id": user_id, "device_type": device_type}
-    )
-    if device.owner_id != user_id:
-        raise PermissionDenied(
-            "Device is already claimed by another user. "
-            "This should never happen, because we verify that the device belongs to a user before creating it."
+    def from_raw_jwt(jwt: dict[str, Any]) -> "DecodedJWT":
+        return DecodedJWT(
+            user_id=UUID(jwt["user_id"]),
+            device_id=UUID(jwt["device_id"]),
+            installation_id=UUID(jwt["installation_id"]),
         )
 
 
-def authenticate_jwt(request) -> tuple[UUID, list[str]]:
+def authenticate_jwt(request) -> DecodedJWT:
     try:
         signed_token = request.META["HTTP_AUTHORIZATION"]
     except KeyError:
@@ -214,28 +177,41 @@ def authenticate_jwt(request) -> tuple[UUID, list[str]]:
         raise AuthenticationFailed("Missing developer id")
 
     # At this point, we trust that the user is who they claim to be
-    user_id = UUID(decoded_token["user_id"])
-    user_device_ids = decoded_token["user_device_ids"]
-    return user_id, user_device_ids
+    return DecodedJWT.from_raw_jwt(decoded_token)
 
 
-def authenticate_login_token(login_token) -> tuple[UUID, list[str]]:
-    if login_token:
-        one_time_token_object = OneTimeToken.objects.filter(token=login_token).first()
-        if not one_time_token_object:
-            raise AuthenticationFailed("Token does not exist")
-        if one_time_token_object.expiration_time < datetime.datetime.now(tz=pytz.UTC):
-            raise AuthenticationFailed("Token expired")
+def authenticate_login_token(login_token) -> UUID:
+    if not login_token:
+        raise AuthenticationFailed("No login token")
+    one_time_token_object = OneTimeToken.objects.filter(token=login_token).first()
+    if not one_time_token_object:
+        raise AuthenticationFailed("Token does not exist")
+    if one_time_token_object.expiration_time < datetime.datetime.now(tz=pytz.UTC):
+        raise AuthenticationFailed("Token expired")
 
-        user_id = one_time_token_object.owner_id
-        user_device_ids = one_time_token_object.user_device_ids
-        one_time_token_object.delete()
-        return user_id, user_device_ids
-    raise AuthenticationFailed("No login token")
+    installation_id = one_time_token_object.installation_id
+
+    OneTimeToken.objects.filter(installation_id=installation_id).delete()
+    return installation_id
+
+
+def generate_login_token(
+    installation_id: UUID,
+) -> str:
+
+    secret_token = secrets.token_urlsafe(50)[:50]
+    OneTimeToken.objects.filter(installation_id=installation_id).delete()
+    one_time_token = OneTimeToken.objects.create(
+        installation_id=installation_id,
+        token=secret_token,
+        expiration_time=now() + datetime.timedelta(minutes=10),
+    )
+
+    return one_time_token.token
 
 
 def authenticate_session(request) -> UUID:
-    user_id = UUID(request.session.get("user-id"))
-    if user_id:
-        return user_id
+    installation_id = UUID(request.session.get("installation-id"))
+    if installation_id:
+        return installation_id
     raise AuthenticationFailed("Session authentication failed")
