@@ -16,7 +16,7 @@ to the settings page of any installed app, and it provides authentication and au
 
 That's all there is to it, conceptually.
 
-There is also a demo app that you can use as a starting point for your own app: https://github.com/Invisible-Computers/image-gallery
+There is also a demo app that you can use as a reference for your own app: https://github.com/Invisible-Computers/image-gallery
 
 And we are happy to provide support for any of your questions. Please email us at: info@invisible-computers.com.
 
@@ -48,7 +48,13 @@ Installation IDs are globally unique, but there can be multiple installations of
 
 You may choose to simply identify sessions by `installation_id`, or you may choose to keep track of devices and users.
 
-You will need to respond with a secret token. You should associate this token with the `installation_id` or any other 
+You will need to respond with a JSON dict containing a secret authentication token. 
+
+```{"login_token": auth_token}```
+
+In the next step, you will use this token to authenticate and authorize a request to the settings page. 
+
+Therefore, you should associate this token with the `installation_id` or any other 
 unique session identifiers, such that you can identify the session when the settings url is opened.  
 
 
