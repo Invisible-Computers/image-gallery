@@ -17,7 +17,7 @@ pytz = "^2023.3"
 requests = "^2.28.2"
 djangorestframework = "^3.14.0"
 whitenoise = "^6.4.0"
-uwsgi = "^2.0.21"
+uwsgi = "^2.0.22"
 
 [build-system]
 requires = ["poetry-core"]
