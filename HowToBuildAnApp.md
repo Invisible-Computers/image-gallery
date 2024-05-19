@@ -53,14 +53,14 @@ You will need to respond with a JSON dict containing a secret authentication tok
 ```{"login_token": auth_token}```
 
 
-After this, the companion app will load your `settings url`, while passing the token in a query argument called `login-token`.
+After this, the companion app will load your `settings start url`, while passing the token in a query argument called `login-token`.
 
-```<your-settings-url>/?login-token=<the-token-you-returned>&device-type=<device-type>/```
+```<your-settings-start-url>/?login-token=<the-token-you-returned>&device-type=<device-type>```
 
 Because the token is part of the query string, it may get logged or get stored in the users browser history.
 
 If your app handles private or otherwise sensitive data, you should use a one-time use token with a relatively 
-short expiration time. You can then use the `settings url` as a `session login url`, 
+short expiration time. You can then use the `settings start url` as a `session login url`, 
 which will redirect to the actual settings page after successful one-time-token authentication.
 
 On the settings page, you should serve a mobile-friendly website that the user can use to configure your app.
