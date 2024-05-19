@@ -36,7 +36,7 @@ You can continue building your application while you're waiting for your develop
 
 #### JWT Login url
 
-The user will be attempting to log in by POSTING a JWT to your **login url**.
+When the users opens your settings page via the Invisible-Computers app, they will be posting a JWT to your **login url**.
 The token contains the following values:
 * `user_id`
 * `developer_id`
@@ -52,27 +52,16 @@ You will need to respond with a JSON dict containing a secret authentication tok
 
 ```{"login_token": auth_token}```
 
-In the next step, you will use this token to authenticate and authorize a request to the settings page. 
-
-Therefore, you should associate this token with the `installation_id` or any other 
-unique session identifiers, such that you can identify the session when the settings url is opened.  
-
-
-
-#### Settings url / session login url
-
 
 After this, the companion app will load your `settings url`, while passing the token in a query argument called `login-token`.
 
 ```<your-settings-url>/?login-token=<the-token-you-returned>&device-type=<device-type>/```
 
-Because the token is part of the query string, it may get logged or get stored in the users browser history. 
-
+Because the token is part of the query string, it may get logged or get stored in the users browser history.
 
 If your app handles private or otherwise sensitive data, you should use a one-time use token with a relatively 
 short expiration time. You can then use the `settings url` as a `session login url`, 
 which will redirect to the actual settings page after successful one-time-token authentication.
-
 
 On the settings page, you should serve a mobile-friendly website that the user can use to configure your app.
 For example, if you are providing an app that displays fitness stats, you will want to guide the user through a process
