@@ -4,7 +4,7 @@
 
 Our goal is to create an app ecosystem for our [E-Paper Smart Display](https://shop.invisible-computers.com/products/invisible-calendar).
 
-Apps run as online web services, and we users are free to decide to which apps they want to connect their display.
+Apps run as online web services, and add them to their display.
 
 
 All apps provide a `settings url` and a `render url`. The `settings url` has to return a mobile-friendly 
