@@ -1,4 +1,4 @@
-# An open App Ecosystem for the Invisible Computers E-Paper Smart Display
+# An Open App Ecosystem for the Invisible Computers E-Paper Smart Display
 
 ## Motivation and Approach
 
