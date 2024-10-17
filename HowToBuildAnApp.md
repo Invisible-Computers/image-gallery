@@ -93,9 +93,11 @@ special installation link that you can place on your website.
 
 
 
-#### Device types
+### Device types
 
 
-* `BLACK_AND_WHITE_SCREEN_800X480` - This device type requires you to render a 800x480 image. The image may be in color or greyscale, but it will be converted to black and white before being displayed on the screen.
+* `BLACK_AND_WHITE_SCREEN_800X480` - This device type requires you to render an 800x480 image. The image may be in color or greyscale, but it will be converted to black and white before being displayed on the screen.
+
+* `BLACK_AND_WHITE_SCREEN_960X640` - This device type requires you to render a 960x640 image. The image may be in color or greyscale, but it will be converted to black and white before being displayed on the screen.
 
 
