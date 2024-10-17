@@ -106,13 +106,13 @@ class GetRender(APIView):
             installation_id=installation_id
         )
 
-        if device_type == "BLACK_AND_WHITE_SCREEN_880X528":
+        if device_type == "BLACK_AND_WHITE_SCREEN_960X640":
             if installation.is_vertically_oriented:
-                width = 528
-                height = 880
+                width = 640
+                height = 960
             else:
-                width = 880
-                height = 528
+                width = 960
+                height = 640
         elif device_type == "BLACK_AND_WHITE_SCREEN_800X480":
             if installation.is_vertically_oriented:
                 width = 480
